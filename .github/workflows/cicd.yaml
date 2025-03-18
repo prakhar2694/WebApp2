@@ -1,74 +1,46 @@
 on:
-
-push:
-
-branches: [ "master" ]
-
+  push:
+    branches: 
+      - "master"
 
 permissions:
-
-contents: read # Allows reading repository contents
-
+  contents: read # Allows reading repository contents
 
 jobs:
+  build-and-push:
+    name: Build & Push to ACR
+    runs-on: ubuntu-latest
 
-build-and-push:
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-name: Build & Push to ACR
+      - name: Set up .NET 8.0
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x' # Install .NET 8.0 SDK
 
-runs-on: ubuntu-latest
+      - name: Restore dependencies
+        run: dotnet restore
 
-steps:
+      - name: Build the application
+        run: dotnet build --configuration Release --no-restore
 
-- name: Checkout repository
+      - name: Publish the application
+        run: dotnet publish -c Release -o ./publish
 
-uses: actions/checkout@v3
+      - name: Login to Azure Container Registry
+        run: |
+            docker login ${{ secrets.ACR_NAME }}.azurecr.io \
+            -u ${{ secrets.ACR_USERNAME }} \
+            -p ${{ secrets.ACR_PASSWORD }}
 
-
-- name: Set up .NET 8.0
-
-uses: actions/setup-dotnet@v3
-
-with:
-
-dotnet-version: '8.0.x' # Install .NET 8.0 SDK
-
-
-- name: Restore dependencies
-
-run: dotnet restore
-
-
-- name: Build the application
-
-run: dotnet build --configuration Release --no-restore
-
-
-- name: Publish the application
-
-run: dotnet publish -c Release -o ./publish
+      - name: Build and push Docker image to ACR
+        env:
+         IMAGE_TAG: ${{ github.sha }}
+        run: |
+          ACR_REPO=${{ secrets.ACR_NAME }}.azurecr.io/aspnetcoreapp
+          docker build -t $ACR_REPO:${IMAGE_TAG} .
+          docker push $ACR_REPO:${IMAGE_TAG}
 
 
-- name: Login to Azure Container Registry
-
-run: |
-
-docker login ${{ secrets.ACR_NAME }}.azurecr.io \
-
--u ${{ secrets.ACR_USERNAME }} \
-
--p ${{ secrets.ACR_PASSWORD }}
-
-- name: Build and push Docker image to ACR
-
-env:
-
-IMAGE_TAG: ${{ github.sha }}
-
-run: |
-
-ACR_REPO=${{ secrets.ACR_NAME }}.azurecr.io/aspnetcoreapp
-
-docker build -t $ACR_REPO:${IMAGE_TAG} .
-
-docker push $ACR_REPO:${IMAGE_TAG}
